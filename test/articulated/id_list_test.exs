@@ -328,4 +328,186 @@ defmodule Articulated.IdListTest do
       refute IdList.known?(list, %ElementId{bunch_id: "def", counter: 2})
     end
   end
+
+  describe "delete operations" do
+    test "marks an element as deleted" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list = IdList.insert_after(list, nil, id)
+      assert IdList.length(list) == 1
+
+      list = IdList.delete(list, id)
+      assert IdList.length(list) == 0
+      refute IdList.has?(list, id)
+      assert IdList.known?(list, id)
+    end
+
+    test "does nothing when deleting an unknown ID" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list = IdList.delete(list, id)
+      assert IdList.length(list) == 0
+      refute IdList.known?(list, id)
+    end
+
+    test "does nothing when deleting an already deleted ID" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list =
+        list
+        |> IdList.insert_after(nil, id)
+        |> IdList.delete(id)
+        |> IdList.delete(id)
+
+      assert IdList.length(list) == 0
+      assert IdList.known?(list, id)
+    end
+
+    test "bulk deletes elements" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list = IdList.insert_after(list, nil, id, 5)
+      assert IdList.length(list) == 5
+
+      list = IdList.delete(list, id, 3)
+      assert IdList.length(list) == 2
+      refute IdList.has?(list, id)
+      assert IdList.known?(list, id)
+
+      assert IdList.has?(
+               list,
+               %ElementId{bunch_id: id.bunch_id, counter: id.counter + 3}
+             )
+    end
+
+    test "bulk delete when not all elements are known" do
+      list = IdList.new()
+      bunch_start = %ElementId{bunch_id: "abc", counter: 0}
+      id = %ElementId{bunch_id: "abc", counter: 5}
+
+      # Insert counters 5..9
+      list = IdList.insert_after(list, nil, id, 5)
+      assert IdList.length(list) == 5
+
+      # Delete counters 0..9
+      list = IdList.delete(list, bunch_start, 10)
+      assert IdList.length(list) == 0
+      refute IdList.has?(list, id)
+      assert IdList.known?(list, id)
+      refute IdList.known?(list, bunch_start)
+    end
+
+    test "bulk delete across multiple leaves" do
+      list =
+        IdList.new()
+        |> IdList.insert_after(nil, %ElementId{bunch_id: "test", counter: 0}, 10)
+        |> IdList.insert_after(
+          %ElementId{bunch_id: "test", counter: 9},
+          %ElementId{bunch_id: "test", counter: 100},
+          10
+        )
+
+      assert IdList.length(list) == 20
+
+      list = IdList.delete(list, %ElementId{bunch_id: "test", counter: 5}, 100)
+      assert IdList.length(list) == 10
+    end
+
+    test "bulk delete and undelete across split leaves" do
+      list =
+        IdList.new()
+        |> IdList.insert_after(nil, %ElementId{bunch_id: "abc", counter: 0}, 10)
+        |> IdList.insert_after(
+          %ElementId{bunch_id: "abc", counter: 5},
+          %ElementId{bunch_id: "def", counter: 0},
+          10
+        )
+
+      assert IdList.length(list) == 20
+
+      list = IdList.delete(list, %ElementId{bunch_id: "abc", counter: 0}, 10)
+      assert IdList.length(list) == 10
+
+      Enum.each(IdList.to_list(list), fn id ->
+        assert id.bunch_id == "def"
+      end)
+
+      list = IdList.undelete(list, %ElementId{bunch_id: "abc", counter: 0}, 10)
+      assert IdList.length(list) == 20
+      assert IdList.at(list, 5) == %ElementId{bunch_id: "abc", counter: 5}
+      assert IdList.at(list, 16) == %ElementId{bunch_id: "abc", counter: 6}
+    end
+
+    test "bulk delete and undelete across split leaves (partial)" do
+      list =
+        IdList.new()
+        |> IdList.insert_after(nil, %ElementId{bunch_id: "abc", counter: 0}, 10)
+        |> IdList.insert_after(
+          %ElementId{bunch_id: "abc", counter: 5},
+          %ElementId{bunch_id: "def", counter: 0},
+          10
+        )
+
+      assert IdList.length(list) == 20
+
+      list = IdList.delete(list, %ElementId{bunch_id: "abc", counter: 2}, 6)
+      assert IdList.length(list) == 14
+
+      for i <- 0..1 do
+        assert IdList.at(list, i).bunch_id == "abc"
+      end
+
+      for i <- 2..11 do
+        assert IdList.at(list, i).bunch_id == "def"
+      end
+
+      for i <- 12..13 do
+        assert IdList.at(list, i).bunch_id == "abc"
+      end
+
+      list = IdList.undelete(list, %ElementId{bunch_id: "abc", counter: 2}, 6)
+      assert IdList.length(list) == 20
+      assert IdList.at(list, 5) == %ElementId{bunch_id: "abc", counter: 5}
+      assert IdList.at(list, 16) == %ElementId{bunch_id: "abc", counter: 6}
+    end
+
+    test "deletes a range of elements by index" do
+      list = IdList.new()
+      id1 = %ElementId{bunch_id: "abc", counter: 1}
+      id2 = %ElementId{bunch_id: "def", counter: 1}
+
+      list =
+        list
+        |> IdList.insert_after(nil, id1, 5)
+        |> IdList.insert_after(%ElementId{bunch_id: id1.bunch_id, counter: 3}, id2, 5)
+
+      assert IdList.length(list) == 10
+
+      list = IdList.delete_range(list, 0, 5)
+
+      assert IdList.to_list(list) == [
+               %ElementId{bunch_id: id2.bunch_id, counter: 3},
+               %ElementId{bunch_id: id2.bunch_id, counter: 4},
+               %ElementId{bunch_id: id2.bunch_id, counter: 5},
+               %ElementId{bunch_id: id1.bunch_id, counter: 4},
+               %ElementId{bunch_id: id1.bunch_id, counter: 5}
+             ]
+    end
+
+    test "does nothing when count = 0" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list = IdList.insert_after(list, nil, id)
+      assert IdList.length(list) == 1
+
+      list = IdList.delete(list, id, 0)
+      assert IdList.length(list) == 1
+      assert IdList.has?(list, id)
+    end
+  end
 end

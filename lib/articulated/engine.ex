@@ -18,22 +18,26 @@ defmodule Articulated.Engine do
               list :: id_list(),
               anchor_id :: ElementId.t() | nil,
               new_id :: ElementId.t(),
-              count :: integer()
+              count :: non_neg_integer()
             ) :: {:ok, id_list()} | {:error, any()}
 
   @callback insert_before(
               list :: id_list(),
               anchor_id :: ElementId.t() | nil,
               new_id :: ElementId.t(),
-              count :: integer()
+              count :: non_neg_integer()
             ) :: {:ok, id_list()} | {:error, any()}
 
-  @callback delete(list :: id_list(), id :: ElementId.t()) :: {:ok, id_list()} | {:error, any()}
-
-  @callback undelete(list :: id_list(), id :: ElementId.t()) ::
+  @callback delete(list :: id_list(), id :: ElementId.t(), count :: non_neg_integer()) ::
               {:ok, id_list()} | {:error, any()}
 
-  @callback uninsert(list :: id_list(), id :: ElementId.t(), count :: integer()) ::
+  @callback undelete(list :: id_list(), id :: ElementId.t(), count :: non_neg_integer()) ::
+              {:ok, id_list()} | {:error, any()}
+
+  @callback delete_range(list :: id_list(), from :: non_neg_integer(), to :: non_neg_integer()) ::
+              {:ok, id_list()} | {:error, any()}
+
+  @callback uninsert(list :: id_list(), id :: ElementId.t(), count :: non_neg_integer()) ::
               {:ok, id_list()} | {:error, any()}
 
   @callback at(list :: id_list(), index :: non_neg_integer()) ::

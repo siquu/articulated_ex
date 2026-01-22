@@ -2,6 +2,7 @@ defmodule Articulated.Engines.Simple do
   @behaviour Articulated.Engine
 
   alias Articulated.Engines.Simple.ListElement
+  alias Articulated.Engines.Simple
   alias Articulated.ElementId
 
   @type t :: [ListElement.t()]
@@ -69,12 +70,30 @@ defmodule Articulated.Engines.Simple do
   end
 
   @impl true
-  def delete(list_els, id),
-    do: Enum.map(list_els, fn e -> if e.id == id, do: %{e | is_deleted: true}, else: e end)
+  def delete(_list_els, _id, count)
+      when not (is_integer(count) and count >= 0) do
+    raise ArgumentError, "count must be a non-negative integer, got: #{inspect(count)}"
+  end
+
+  def delete(list_els, _id, 0), do: list_els
+
+  def delete(list_els, id, count) do
+    to_delete = for i <- 0..(count - 1), do: %{id | counter: id.counter + i}
+    Enum.map(list_els, fn e -> if e.id in to_delete, do: %{e | is_deleted: true}, else: e end)
+  end
 
   @impl true
-  def undelete(list_els, id),
-    do: Enum.map(list_els, fn e -> if e.id == id, do: %{e | is_deleted: false}, else: e end)
+  def undelete(_list_els, _id, count)
+      when not (is_integer(count) and count >= 0) do
+    raise ArgumentError, "count must be a non-negative integer, got: #{inspect(count)}"
+  end
+
+  def undelete(list_els, _id, 0), do: list_els
+
+  def undelete(list_els, id, count) do
+    to_undelete = for i <- 0..(count - 1), do: %{id | counter: id.counter + i}
+    Enum.map(list_els, fn e -> if e.id in to_undelete, do: %{e | is_deleted: false}, else: e end)
+  end
 
   @impl true
   def uninsert(_list_els, _id, count)
@@ -90,7 +109,29 @@ defmodule Articulated.Engines.Simple do
   end
 
   @impl true
-  def at(list_els, index), do: Enum.at(list_els, index).id
+  def at(list_els, index) when is_integer(index) and index >= 0 do
+    list_els
+    |> Enum.reduce_while(0, fn
+      %{is_deleted: true}, visible_index ->
+        {:cont, visible_index}
+
+      %{id: id}, visible_index ->
+        if visible_index == index do
+          {:halt, id}
+        else
+          {:cont, visible_index + 1}
+        end
+    end)
+  end
+
+  @impl true
+  def delete_range(list_els, from, to) do
+    els = for i <- from..(to - 1), do: Simple.at(list_els, i)
+
+    for el <- els, reduce: list_els do
+      acc -> delete(acc, el, 1)
+    end
+  end
 
   @impl true
   def index_of(list_els, id, _bias), do: Enum.find_index(list_els, fn e -> e.id == id end)
@@ -105,7 +146,7 @@ defmodule Articulated.Engines.Simple do
   @impl true
   def has?(list, element_id) do
     Enum.any?(list, fn el ->
-      el.id == element_id.id and not el.is_deleted
+      el.id == element_id and not el.is_deleted
     end)
   end
 

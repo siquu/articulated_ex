@@ -61,16 +61,24 @@ defmodule Articulated.IdList do
   @doc """
   Delete an element by its ElementId.
   """
-  def delete(%IdList{engine: engine, state: state} = list, id) do
-    new_state = engine.delete(state, id)
+  def delete(%IdList{engine: engine, state: state} = list, id, count \\ 1) do
+    new_state = engine.delete(state, id, count)
     %{list | state: new_state}
   end
 
   @doc """
   Restore a deleted ElementId.
   """
-  def undelete(%IdList{engine: engine, state: state} = list, id) do
-    new_state = engine.undelete(state, id)
+  def undelete(%IdList{engine: engine, state: state} = list, id, count \\ 1) do
+    new_state = engine.undelete(state, id, count)
+    %{list | state: new_state}
+  end
+
+  @doc """
+  Deletes all ids with indexes in the range [from, to).
+  """
+  def delete_range(%IdList{engine: engine, state: state} = list, to, from) do
+    new_state = engine.delete_range(state, to, from)
     %{list | state: new_state}
   end
 
