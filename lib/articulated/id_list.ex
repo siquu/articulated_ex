@@ -77,8 +77,8 @@ defmodule Articulated.IdList do
   @doc """
   Undo an insertion of an ElementId.
   """
-  def uninsert(%IdList{engine: engine, state: state} = list, id) do
-    new_state = engine.uninsert(state, id)
+  def uninsert(%IdList{engine: engine, state: state} = list, id, count \\ 1) do
+    new_state = engine.uninsert(state, id, count)
     %{list | state: new_state}
   end
 

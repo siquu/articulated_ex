@@ -33,7 +33,7 @@ defmodule Articulated.Engine do
   @callback undelete(list :: id_list(), id :: ElementId.t()) ::
               {:ok, id_list()} | {:error, any()}
 
-  @callback uninsert(list :: id_list(), id :: ElementId.t()) ::
+  @callback uninsert(list :: id_list(), id :: ElementId.t(), count :: integer()) ::
               {:ok, id_list()} | {:error, any()}
 
   @callback at(list :: id_list(), index :: non_neg_integer()) ::
