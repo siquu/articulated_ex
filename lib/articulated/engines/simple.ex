@@ -91,7 +91,9 @@ defmodule Articulated.Engines.Simple do
   def undelete(list_els, _id, 0), do: list_els
 
   def undelete(list_els, id, count) do
+    assert_all_known!(list_els, id, count)
     to_undelete = for i <- 0..(count - 1), do: %{id | counter: id.counter + i}
+
     Enum.map(list_els, fn e -> if e.id in to_undelete, do: %{e | is_deleted: false}, else: e end)
   end
 
@@ -109,7 +111,16 @@ defmodule Articulated.Engines.Simple do
   end
 
   @impl true
+  def at(_list_els, index)
+      when not (is_integer(index) and index >= 0) do
+    raise ArgumentError, "index must be a non-negative integer, got: #{inspect(index)}"
+  end
+
   def at(list_els, index) when is_integer(index) and index >= 0 do
+    if index > Simple.length(list_els) - 1 do
+      raise ArgumentError, "index must not exceed the length of the IdList"
+    end
+
     list_els
     |> Enum.reduce_while(0, fn
       %{is_deleted: true}, visible_index ->
@@ -134,7 +145,27 @@ defmodule Articulated.Engines.Simple do
   end
 
   @impl true
-  def index_of(list_els, id, _bias), do: Enum.find_index(list_els, fn e -> e.id == id end)
+  def index_of(list_els, id, bias) do
+    assert_all_known!(list_els, id, 1)
+
+    Enum.reduce_while(list_els, 0, fn
+      %{id: ^id, is_deleted: true}, visible_index ->
+        case bias do
+          :none -> {:halt, -1}
+          :left -> {:halt, visible_index - 1}
+          :right -> {:halt, visible_index}
+        end
+
+      %{is_deleted: true}, visible_index ->
+        {:cont, visible_index}
+
+      %{id: ^id}, visible_index ->
+        {:halt, visible_index}
+
+      _el, visible_index ->
+        {:cont, visible_index + 1}
+    end)
+  end
 
   @impl true
   def length(list_els) do
@@ -154,6 +185,28 @@ defmodule Articulated.Engines.Simple do
   def known?(list_els, element_id) do
     Enum.any?(list_els, fn list_el ->
       list_el.id == element_id
+    end)
+  end
+
+  @impl true
+  def max_counter(list_els, bunch_id) do
+    Enum.reduce(list_els, 0, fn
+      %{id: %{bunch_id: ^bunch_id}}, acc -> acc + 1
+      _, acc -> acc
+    end)
+    |> case do
+      0 -> nil
+      count -> count
+    end
+  end
+
+  defp assert_all_known!(list_els, id, count) do
+    Enum.each(0..(count - 1), fn offset ->
+      candidate = %{id | counter: id.counter + offset}
+
+      unless Simple.known?(list_els, candidate) do
+        raise ArgumentError, "ElementId #{inspect(candidate)} not known"
+      end
     end)
   end
 

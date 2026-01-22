@@ -510,4 +510,197 @@ defmodule Articulated.IdListTest do
       assert IdList.has?(list, id)
     end
   end
+
+  describe "undelete operations" do
+    test "restores a deleted element" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list =
+        list
+        |> IdList.insert_after(nil, id)
+        |> IdList.delete(id)
+        |> IdList.undelete(id)
+
+      assert IdList.length(list) == 1
+      assert IdList.has?(list, id)
+    end
+
+    test "raises when undeleting an unknown ID" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      assert_raise ArgumentError, fn ->
+        IdList.undelete(list, id)
+      end
+    end
+
+    test "raises when any bulk ID is unknown" do
+      list = IdList.new()
+      id1 = %ElementId{bunch_id: "abc", counter: 1}
+      id3 = %ElementId{bunch_id: "abc", counter: 3}
+
+      list =
+        list
+        |> IdList.insert_after(nil, id1)
+        |> IdList.insert_after(id1, id3)
+
+      # Counter 2 is not known
+      assert_raise ArgumentError, fn ->
+        IdList.undelete(list, id1, 3)
+      end
+    end
+
+    test "does nothing when undeleting an already present ID" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list =
+        list
+        |> IdList.insert_after(nil, id)
+        |> IdList.undelete(id)
+
+      assert IdList.length(list) == 1
+      assert IdList.has?(list, id)
+    end
+
+    test "bulk undeletes elements" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list = IdList.insert_after(list, nil, id, 5)
+      assert IdList.length(list) == 5
+
+      list = IdList.delete(list, id, 3)
+      assert IdList.length(list) == 2
+      refute IdList.has?(list, id)
+      assert IdList.known?(list, id)
+      assert IdList.has?(list, %ElementId{bunch_id: id.bunch_id, counter: 4})
+
+      list = IdList.undelete(list, id, 3)
+      assert IdList.length(list) == 5
+      assert IdList.has?(list, id)
+      assert IdList.has?(list, %ElementId{bunch_id: id.bunch_id, counter: 4})
+    end
+
+    test "bulk undeletes across multiple leaves" do
+      list =
+        IdList.new()
+        |> IdList.insert_after(nil, %ElementId{bunch_id: "test", counter: 0}, 20)
+        |> IdList.insert_after(
+          %ElementId{bunch_id: "test", counter: 9},
+          %ElementId{bunch_id: "test", counter: 100},
+          1
+        )
+
+      # Leaf A: 0..9
+      # Leaf B: 100
+      # Leaf C: 10..19
+      assert IdList.length(list) == 21
+
+      # Delete counters 5..15
+      list = IdList.delete(list, %ElementId{bunch_id: "test", counter: 5}, 11)
+      assert IdList.length(list) == 10
+
+      # Undelete counters 5..15
+      list = IdList.undelete(list, %ElementId{bunch_id: "test", counter: 5}, 11)
+      assert IdList.length(list) == 21
+
+      for counter <- 0..19 do
+        assert IdList.has?(list, %ElementId{bunch_id: "test", counter: counter})
+      end
+
+      assert IdList.has?(list, %ElementId{bunch_id: "test", counter: 100})
+    end
+
+    test "does nothing when count = 0" do
+      list = IdList.new()
+      id = %ElementId{bunch_id: "abc", counter: 1}
+
+      list =
+        list
+        |> IdList.insert_after(nil, id)
+        |> IdList.delete(id)
+
+      assert IdList.length(list) == 0
+
+      list = IdList.undelete(list, id, 0)
+      assert IdList.length(list) == 0
+      refute IdList.has?(list, id)
+      assert IdList.known?(list, id)
+    end
+  end
+
+  describe "accessor operations" do
+    setup do
+      id1 = %ElementId{bunch_id: "abc", counter: 1}
+      id2 = %ElementId{bunch_id: "def", counter: 1}
+      id3 = %ElementId{bunch_id: "ghi", counter: 1}
+
+      list =
+        IdList.new()
+        |> IdList.insert_after(nil, id1)
+        |> IdList.insert_after(id1, id2)
+        |> IdList.insert_after(id2, id3)
+        # delete the middle element
+        |> IdList.delete(id2)
+
+      {:ok, list: list, id1: id1, id2: id2, id3: id3}
+    end
+
+    test "gets an element by index", %{list: list, id1: id1, id3: id3} do
+      assert IdList.at(list, 0) == id1
+      assert IdList.at(list, 1) == id3
+    end
+
+    test "raises when accessing an out-of-bounds index", %{list: list} do
+      assert_raise ArgumentError, fn ->
+        IdList.at(list, -1)
+      end
+
+      assert_raise ArgumentError, fn ->
+        IdList.at(list, 2)
+      end
+    end
+
+    test "finds index of an element", %{list: list, id1: id1, id3: id3} do
+      assert IdList.index_of(list, id1) == 0
+      assert IdList.index_of(list, id3) == 1
+    end
+
+    test "returns -1 for deleted element with bias :none", %{list: list, id2: id2} do
+      assert IdList.index_of(list, id2, :none) == -1
+    end
+
+    test "returns left index for deleted element with bias :left", %{
+      list: list,
+      id2: id2
+    } do
+      assert IdList.index_of(list, id2, :left) == 0
+    end
+
+    test "returns right index for deleted element with bias :right", %{
+      list: list,
+      id2: id2
+    } do
+      assert IdList.index_of(list, id2, :right) == 1
+    end
+
+    test "raises when finding index of an unknown element", %{list: list} do
+      unknown_id = %ElementId{bunch_id: "xyz", counter: 1}
+
+      assert_raise ArgumentError, fn ->
+        IdList.index_of(list, unknown_id)
+      end
+    end
+
+    test "returns max counter per bunch", %{list: list} do
+      assert IdList.max_counter(list, "abc") == 1
+      assert IdList.max_counter(list, "def") == 1
+      assert IdList.max_counter(list, "ghi") == 1
+
+      # Non-existent bunch
+      assert IdList.max_counter(list, "non-existent") == nil
+    end
+  end
 end

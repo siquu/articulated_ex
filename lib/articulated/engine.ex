@@ -53,4 +53,6 @@ defmodule Articulated.Engine do
   @callback known?(list :: id_list(), id :: ElementId.t()) :: boolean()
 
   @callback to_list(list :: id_list()) :: list(ElementId.t())
+
+  @callback max_counter(list :: id_list(), String.t()) :: non_neg_integer()
 end

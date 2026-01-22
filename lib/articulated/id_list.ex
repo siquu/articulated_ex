@@ -99,6 +99,12 @@ defmodule Articulated.IdList do
 
   @doc """
   Returns the index of an ElementId, optionally biased for deleted-but-known elements.
+
+  If `id` is known but deleted, the bias specifies what to return:
+      * - "none": -1.
+      * - "left": The index immediately to the left of `id`, possibly -1.
+      * - "right": The index immediately to the right of `id`, possibly `this.length`.
+      * Equivalently, the index where `id` would be if present.
   """
   def index_of(%IdList{engine: engine, state: state}, id, bias \\ :none) do
     engine.index_of(state, id, bias)
@@ -123,5 +129,15 @@ defmodule Articulated.IdList do
   """
   def known?(%IdList{engine: engine, state: state}, id) do
     engine.known?(state, id)
+  end
+
+  @doc """
+  Returns the maximum counter across all known ElementIds with the given bunch_id,
+  or undefined if no such ElementIds are known.
+
+  This method is useful when creating ElementIds.
+  """
+  def max_counter(%IdList{engine: engine, state: state}, bunch_id) do
+    engine.max_counter(state, bunch_id)
   end
 end
