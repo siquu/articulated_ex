@@ -16,8 +16,22 @@ defmodule Articulated.IdList do
   @type bias :: :none | :left | :right
 
   @opaque t :: %IdList{engine: module(), state: any()}
-
   defstruct engine: nil, state: nil
+
+  defimpl JSON.Encoder do
+    def encode(id_list, encoder) do
+      encoder.(id_list.state, encoder)
+    end
+  end
+
+  defimpl Inspect do
+    import Inspect.Algebra
+
+    def inspect(id_list, %Inspect.Opts{} = opts) do
+      opts = %{opts | charlists: :as_lists}
+      concat(["IdList.new(", Inspect.List.inspect(IdList.to_list(id_list), opts), ")"])
+    end
+  end
 
   @doc """
   Create a new IdList.

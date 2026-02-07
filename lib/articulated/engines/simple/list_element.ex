@@ -3,6 +3,7 @@ defmodule Articulated.Engines.Simple.ListElement do
   alias Articulated.ElementId
 
   @enforce_keys [:id]
+  @derive {JSON.Encoder, only: [:id, :is_deleted]}
   defstruct [:id, is_deleted: false]
 
   @type t :: %__MODULE__{

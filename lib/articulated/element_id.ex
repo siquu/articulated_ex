@@ -4,6 +4,7 @@ defmodule Articulated.ElementId do
   """
 
   @enforce_keys [:bunch_id, :counter]
+  @derive JSON.Encoder
   defstruct [:bunch_id, :counter]
 
   @type t :: %__MODULE__{
