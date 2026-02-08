@@ -27,9 +27,10 @@ defmodule Articulated.IdList do
   defimpl Inspect do
     import Inspect.Algebra
 
-    def inspect(id_list, %Inspect.Opts{} = opts) do
-      opts = %{opts | charlists: :as_lists}
-      concat(["IdList.new(", Inspect.List.inspect(IdList.to_list(id_list), opts), ")"])
+    def inspect(%Articulated.IdList{state: state}, opts) do
+      {doc, %{limit: limit}} = to_doc_with_opts(state, %{opts | charlists: :as_lists})
+
+      {concat(["IdList.new(", doc, ")"]), %{opts | limit: limit}}
     end
   end
 
