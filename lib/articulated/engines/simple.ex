@@ -29,19 +29,21 @@ defmodule Articulated.Engines.Simple do
 
   def insert_after(list_els, _anchor_id, _new_id, 0), do: list_els
 
-  def insert_after(list_els, anchor_id, new_id, count) do
+  def insert_after(list_els, anchor_id, %ElementId{} = new_id, count) do
     validate_insert!(list_els, anchor_id, new_id)
 
     new_elements =
       for i <- 0..(count - 1), do: %ListElement{id: %{new_id | counter: new_id.counter + i}}
 
-    if anchor_id do
-      Enum.flat_map(list_els, fn
-        %ListElement{id: ^anchor_id} = el -> [el | new_elements]
-        other -> [other]
-      end)
-    else
-      new_elements ++ list_els
+    case anchor_id do
+      %ElementId{} = anchor_id ->
+        Enum.flat_map(list_els, fn
+          %ListElement{id: ^anchor_id} = el -> [el | new_elements]
+          other -> [other]
+        end)
+
+      nil ->
+        new_elements ++ list_els
     end
   end
 
@@ -53,19 +55,21 @@ defmodule Articulated.Engines.Simple do
 
   def insert_before(list_els, _anchor_id, _new_id, 0), do: list_els
 
-  def insert_before(list_els, anchor_id, new_id, count) do
+  def insert_before(list_els, anchor_id, %ElementId{} = new_id, count) do
     validate_insert!(list_els, anchor_id, new_id)
 
     new_elements =
       for i <- 0..(count - 1), do: %ListElement{id: %{new_id | counter: new_id.counter + i}}
 
-    if anchor_id do
-      Enum.flat_map(list_els, fn
-        %ListElement{id: ^anchor_id} = el -> new_elements ++ [el]
-        other -> [other]
-      end)
-    else
-      list_els ++ new_elements
+    case anchor_id do
+      %ElementId{} = anchor_id ->
+        Enum.flat_map(list_els, fn
+          %ListElement{id: ^anchor_id} = el -> new_elements ++ [el]
+          other -> [other]
+        end)
+
+      nil ->
+        list_els ++ new_elements
     end
   end
 
@@ -77,7 +81,7 @@ defmodule Articulated.Engines.Simple do
 
   def delete(list_els, _id, 0), do: list_els
 
-  def delete(list_els, id, count) do
+  def delete(list_els, %ElementId{} = id, count) do
     to_delete = for i <- 0..(count - 1), do: %{id | counter: id.counter + i}
     Enum.map(list_els, fn e -> if e.id in to_delete, do: %{e | is_deleted: true}, else: e end)
   end
@@ -90,7 +94,7 @@ defmodule Articulated.Engines.Simple do
 
   def undelete(list_els, _id, 0), do: list_els
 
-  def undelete(list_els, id, count) do
+  def undelete(list_els, %ElementId{} = id, count) do
     assert_all_known!(list_els, id, count)
     to_undelete = for i <- 0..(count - 1), do: %{id | counter: id.counter + i}
 
@@ -105,7 +109,7 @@ defmodule Articulated.Engines.Simple do
 
   def uninsert(list_els, _id, 0), do: list_els
 
-  def uninsert(list_els, id, count) do
+  def uninsert(list_els, %ElementId{} = id, count) do
     to_uninsert = for i <- 0..(count - 1), do: %{id | counter: id.counter + i}
     Enum.reject(list_els, fn e -> e.id in to_uninsert end)
   end
@@ -145,7 +149,7 @@ defmodule Articulated.Engines.Simple do
   end
 
   @impl true
-  def index_of(list_els, id, bias) do
+  def index_of(list_els, %ElementId{} = id, bias) do
     assert_all_known!(list_els, id, 1)
 
     Enum.reduce_while(list_els, 0, fn
@@ -175,14 +179,14 @@ defmodule Articulated.Engines.Simple do
   end
 
   @impl true
-  def has?(list, element_id) do
+  def has?(list, %ElementId{} = element_id) do
     Enum.any?(list, fn el ->
       el.id == element_id and not el.is_deleted
     end)
   end
 
   @impl true
-  def known?(list_els, element_id) do
+  def known?(list_els, %ElementId{} = element_id) do
     Enum.any?(list_els, fn list_el ->
       list_el.id == element_id
     end)
